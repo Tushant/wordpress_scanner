@@ -1,6 +1,10 @@
 # import pandas as pd 
 import requests
+from requests_html import HTMLSession
+from collections import Counter
+from urllib.parse import urlparse
 
+user_agent=None
 # user agent so it doesn't show as python and get blocked, set global for request that need to allow for redirects
 def get(websiteToScan):
     global user_agent
@@ -12,6 +16,7 @@ def get(websiteToScan):
 
 # Begin scan
 def scan(df, websiteToScan):
+    
     print(df, websiteToScan)
     # Check the input for HTTP or HTTPS and then remove it, if nothing is found assume HTTP
     if websiteToScan.startswith('http://'):
@@ -47,8 +52,14 @@ def scan(df, websiteToScan):
                 print ("The site entered appears to be redirecting, please verify the destination site to ensure accurate results!")
             else:
                 print ("Site does not appear to be redirecting...")
+            for header in onlineCheck.headers:
+                try:
+                    print (f"{header}: {onlineCheck.headers[header]}")
+                except Exception as ex:
+                    print (f"Error: {ex.message}")
         else:
             print (f"{websiteToScan} appears to be online but returned a {str(onlineCheck.status_code)} error.")
+            df.at[websiteToScan,'Status'] = 'No'
             exit()
         print ("Attempting to get the HTTP headers...")
         for header in onlineCheck.headers:
@@ -60,12 +71,11 @@ def scan(df, websiteToScan):
         # WordPress Scans
         ####################################################
         # Use requests.get allowing redirects otherwise will always fail
-        wpLoginCheck = requests.get(websiteToScan + '/wp-login.php', headers=user_agent)
-        print(f"wpLoginCheck: {wpLoginCheck}")
+        wpLoginCheck=requests.get(websiteToScan + '/wp-login.php', headers=user_agent)
         if wpLoginCheck.status_code == 200:
-            df['Status'] = 'Yes'
-            print (f"Detected: WordPress: {websiteToScan}")
+            return 'Yes'
         else:
-            print ("Not detected")
-            df['Status'] = 'No'
-        df.to_csv('updated.csv')
+            return'No'
+
+        df['Status'] = df.apply(wpLoginCheck, axis=1)
+        df.to_csv('updated.csv', index=False)
